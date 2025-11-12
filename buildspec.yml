@@ -1,0 +1,44 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    SSH_KEY: "ssh/deploy-key"  # Name of your secret in AWS Secrets Manager
+  variables:
+    HOST: "ubuntu@ec2-13-222-24-184.compute-1.amazonaws.com"
+    APP_DIR: "/var/www/html/myapp"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+      - echo "🔧 Installing dependencies..."
+      - apt-get update -y
+      - apt-get install -y rsync openssh-client
+
+  build:
+    commands:
+      - echo "🚀 Starting SSH-based deployment..."
+      
+      # Setup SSH key
+      - mkdir -p ~/.ssh
+      - echo "$SSH_KEY" > ~/.ssh/id_rsa
+      - chmod 600 ~/.ssh/id_rsa
+
+      # Verify SSH connection
+      - echo "🔑 Testing SSH connection to $HOST ..."
+      - ssh -o StrictHostKeyChecking=no $HOST "echo '✅ SSH connected successfully!'"
+
+      # Create target app directory
+      - ssh -o StrictHostKeyChecking=no $HOST "sudo mkdir -p $APP_DIR && sudo chown ubuntu:ubuntu $APP_DIR"
+
+      # Sync project files (excluding .git and build artifacts)
+      - rsync -avz --delete --exclude '.git' ./ $HOST:$APP_DIR/
+
+      # Install Nginx if missing and restart service
+      - echo "🌐 Ensuring Nginx is installed and running..."
+      - ssh -o StrictHostKeyChecking=no $HOST "which nginx || sudo apt-get install -y nginx"
+      - ssh -o StrictHostKeyChecking=no $HOST "sudo systemctl enable nginx && sudo systemctl restart nginx"
+
+      - echo "✅ Deployment complete!"
+
