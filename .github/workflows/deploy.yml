@@ -1,0 +1,50 @@
+name: Deploy React App to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      # 2. Setup Node.js v25
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '25.2.1'
+
+      # 3. Install dependencies and build React
+      - name: Install and Build
+        run: |
+          npm install
+          npm run build
+
+      # 4. Deploy build folder to EC2
+      - name: Deploy to EC2
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          APP_PATH: /home/ubuntu/hello-world-ec2-pipeline/my-react-app/build
+        run: |
+          # Save SSH key
+          echo "$SSH_KEY" > key.pem
+          chmod 600 key.pem
+
+          # Copy build folder to EC2
+          scp -o StrictHostKeyChecking=no -r build/* $USER@$HOST:$APP_PATH/
+
+          # SSH into EC2, fix permissions, restart Nginx
+          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST << 'EOF'
+            sudo chown -R www-data:www-data /home/ubuntu/hello-world-ec2-pipeline/my-react-app/build
+            sudo chmod -R 755 /home/ubuntu/hello-world-ec2-pipeline/my-react-app/build
+            sudo systemctl restart nginx
+          EOF
+
