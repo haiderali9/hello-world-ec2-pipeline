@@ -39,16 +39,17 @@ jobs:
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
 
-          # Ensure build folder exists on server
-          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST "sudo mkdir -p $APP_PATH"
+          # Ensure build folder exists and is writable by ubuntu
+          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST \
+            "sudo mkdir -p $APP_PATH && sudo chown -R $USER:$USER $APP_PATH"
 
-          # Remove old files with sudo (clean deployment)
-          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST "sudo rm -rf $APP_PATH/*"
+          # Remove old files (clean deployment)
+          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST "rm -rf $APP_PATH/*"
 
           # Copy new build files
           scp -o StrictHostKeyChecking=no -i key.pem -r build/* $USER@$HOST:$APP_PATH/
 
-          # Fix permissions and restart Nginx
+          # Change ownership to www-data and restart Nginx
           ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST << 'EOF'
             sudo chown -R www-data:www-data /home/ubuntu/hello-world-ec2-pipeline/my-react-app/build
             sudo chmod -R 755 /home/ubuntu/hello-world-ec2-pipeline/my-react-app/build
